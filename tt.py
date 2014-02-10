@@ -32,7 +32,7 @@ class TimeTracker:
 
 	def _load_defaults(self):
 		self.projectname = os.path.basename(self.path)
-		self.actions = list()
+		self.actions = dict()
 		self.lastaction = None
 		self._save_config()
 
@@ -41,7 +41,11 @@ class TimeTracker:
 			tt_json = json.load(tt_file)
 			self.projectname = tt_json['projectname']
 			self.actions = tt_json['actions']
-			self.lastaction = self.actions[-1]
+			self.action_count = len(self.actions)
+			if self.action_count > 0:
+				self.lastaction = self.actions[str(self.action_count)]
+			else:
+				self.lastaction = None
 
 	def _save_config(self):
 		tt_obj = dict()
@@ -53,22 +57,29 @@ class TimeTracker:
 			json.dump(tt_obj, tt_file, indent=4)
 
 	def start(self, taskname=None):
-		self.lastaction = dict(action='start',
-								timestamp=datetime.datetime.now().isoformat(),
-								taskname=taskname)
+		if self.lastaction:
+			if self.lastaction['action'] == 'start' and taskname == self.lastaction['taskname']:
+				print('Perhaps you should finished what you started, or assign a taskname.')
+			else:
+				self.lastaction = dict(action='start',
+										timestamp=datetime.datetime.now().isoformat(),
+										taskname=taskname)
 
-		self.actions.append(self.lastaction)
-		self._save_config()
+				self.action_count += 1
+				self.actions[self.action_count] = self.lastaction
+				self._save_config()
 
 	def stop(self, taskname=None):
-		if self.lastaction['action'] == 'start':
-			print('rad')
-		self.lastaction = dict(action='stop', 
-								timestamp=datetime.datetime.now().isoformat(),
-								taskname=taskname)
-		self.actions.append(self.lastaction)
-		self._save_config()
+		if self.lastaction and self.lastaction['action'] == 'start':
+			self.lastaction = dict(action='stop', 
+									timestamp=datetime.datetime.now().isoformat(),
+									taskname=taskname)
 
+			self.action_count += 1
+			self.actions[self.action_count] = self.lastaction
+			self._save_config()
+		else:
+			print('It seems as though you weren\'t working on anything.')
 
 if __name__ == '__main__':
 	args = parser.parse_args()
