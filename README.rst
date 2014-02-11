@@ -2,3 +2,54 @@ TimeTracker
 ===========
 
 TimeTracker (tt) is a python task management tool. Developed primarily out of my own needs as a consultant and a procrastinator.
+
+Installation
+============
+
+Currently, you need to clone the repository, and symlink it to your apps folder.
+
+.. code-block:: bash
+
+	$ git clone https://github.com/Ateoto/tt.git
+	$ sudo ln -s tt/tt.py /usr/bin/tt
+
+
+This is obviously not ideal, and I will work on that.
+
+Usage
+=====
+
+Lets track our time in a project!
+
+.. code-block:: bash
+
+	$ tt start "Working on easing installation"
+
+That's it, TimeTracker is now tracking how long it's taken you to fix this broken install process.
+
+Ok, I've fixed the install process (just for the sake of example).
+Commit the changes to your repo and then:
+
+.. code-block:: bash
+	
+	$ tt stop "Working on easing installation"
+	$ Working on easing installation completed. Elapsed Time: 0:20:44
+
+You can also see a list of active tasks.
+
+.. code-block:: bash
+
+	$ tt list
+	Open Tasks:
+	===========
+	[Working on list command.] started on 2014-02-11 at 16:17:34 (Elapsed time: 0:36:16.636782)
+
+There is a lot more to come.
+
+Features
+========
+
+ - Uses an sqlite database to keep track of active and closed tasks.
+ - Simple implementation.
+ - Simple API.
+ - Coming Soon: Integration with a Django project to allow fine grained views on time management.
