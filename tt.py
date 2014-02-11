@@ -167,8 +167,7 @@ class TimeTracker:
                 con.execute('update tasks set stop=?, active=? where rowid=?', 
                             (task.stop, task.active, task.rowid,))
 
-                et = task.stop - task.start
-                print("%s completed. Elapsed Time: %s" % (task.name, et))
+                print("%s completed. Elapsed Time: %s" % (task.name, task._pretty_elapsed_time()))
             con.commit()
             con.close()
         else:

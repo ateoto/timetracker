@@ -33,7 +33,7 @@ Commit the changes to your repo and then:
 .. code-block:: bash
 	
 	$ tt stop "Working on easing installation"
-	$ Working on easing installation completed. Elapsed Time: 0:20:44
+	$ Working on easing installation completed. Elapsed Time: 20 minutes
 
 You can also see a list of active tasks.
 
