@@ -42,7 +42,9 @@ You can also see a list of active tasks.
 	$ tt list
 	Open Tasks:
 	===========
-	[Working on list command.] started on 2014-02-11 at 16:17:34 (Elapsed time: 0:36:16.636782)
+	[None] (Elapsed time: 1 hours, 23 minutes)
+	[Working on list command.] (Elapsed time: 36 minutes)
+	[Pretty Elapsed Time.] (Elapsed time: 24 minutes)
 
 There is a lot more to come.
 
