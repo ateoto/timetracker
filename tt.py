@@ -33,7 +33,7 @@ class Task:
         self.active = active
         self.synced = synced
 
-    def __str__(self):
+    def _pretty_elapsed_time(self):
         if not self.stop:
             et = datetime.datetime.now() - self.start
         else:
@@ -57,9 +57,12 @@ class Task:
             seconds2, name2 = chunks[i + 1]
             count2 = (since - (seconds * count)) // seconds2
             if count2 != 0:
-                pretty = "%s, %i %s" % (pretty, count2, name2)
+                pretty = "%s, %i %s" % (pretty, count2, name2)     
+                
+        return pretty 
 
-        return "[%s] Elapsed Time: %s" % (self.name, pretty)
+    def __str__(self):
+        return "[%s] Elapsed Time: %s" % (self.name, self._pretty_elapsed_time())
 
     def __repr__(self):
         return self.__str__()
