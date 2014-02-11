@@ -63,8 +63,10 @@ class TimeTracker:
 		if row:
 			self.project_id = row[0]
 		else:
-			result = con.execute('insert into projects values(?,?)', (self.projectname, datetime.datetime.now(),))
-			result = con.execute('select rowid, * from projects where name=?', (self.projectname,))
+			result = con.execute('insert into projects values(?,?)', 
+				(self.projectname, datetime.datetime.now(),))
+			result = con.execute('select rowid, * from projects where name=?', 
+				(self.projectname,))
 			row = result.fetchone()
 			self.project_id = row[0]
 
@@ -74,20 +76,35 @@ class TimeTracker:
 	def start(self, taskname=None):
 		con = sqlite3.connect(self.database_path)
 		if taskname:
-			result = con.execute('select rowid, * from tasks where project=? and name=? and active=?', (self.project_id, taskname, True,))
+			result = con.execute('select rowid, * from tasks where project=? ' \
+								'and name=? and active=?', 
+								(self.project_id, taskname, True,))
 		else:
-			result = con.execute('select rowid, * from tasks where project=? and name is null and active=?', (self.project_id, True,))
-		#See if they exist already, but for now lets just put them in.
+			result = con.execute('select rowid, * from tasks where project=? ' \
+								'and name is null and active=?', 
+								(self.project_id, True,))
+
 		results = list()
 		for row in result:
 			t = Task(row[1], row[2], row[3], row[4], row[5], row[6])
 			results.append(t)
 
 		if len(results) > 0:
-			print('There are %i active tasks with the same name, you should complete them before starting another.' % len(results))
+			# For right now, lets just tell the user that they can't do this.
+			# In the future, lets make this more interactive.
+			print('There are %i active tasks with the same name, ' \
+					'you should complete them before starting another.' 
+					% len(results))
 		else:
-			con.execute('insert into tasks(project, name, start, active, synced) values(?,?,?,?,?)', (
-				self.project_id, taskname, datetime.datetime.now(), True, False))
+			con.execute('insert into tasks ' \
+						'(project, name, start, active, synced) ' \
+						'values(?,?,?,?,?)', (
+						self.project_id, 
+						taskname, 
+						datetime.datetime.now(),
+						True,
+						False))
+
 			con.commit()
 			con.close()
 
