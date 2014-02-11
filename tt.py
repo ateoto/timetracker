@@ -1,5 +1,6 @@
+#!/usr/bin/env python
+
 import argparse
-import json
 import os
 import datetime
 import sqlite3
@@ -17,24 +18,29 @@ parser.add_argument('--project',
 					'If not set, defaults to current directory.')
 
 class Task:
-	def __init__(self, projectid, taskname, start, stop, active, synced):
+	def __init__(self, rowid, projectid, name, start, stop, active, synced):
+		self.rowid = rowid
 		self.projectid = projectid
-		self.taskname = taskname
-		self.start = start
-		self.stop = stop
+		self.name = name
+		if start:
+			self.start = datetime.datetime.strptime(start, '%Y-%m-%d %H:%M:%S.%f')
+		else:
+			self.start = None
+		if stop:
+			self.stop = datetime.datetime.strptime(stop, '%Y-%m-%d %H:%M:%S.%f')
+		else:
+			self.stop = None
 		self.active = active
 		self.synced = synced
 
 	def __str__(self):
-		return "%s active: %s" % (self.taskname, self.active)
+		return "%s active: %s" % (self.name, self.active)
 
 	def __repr__(self):
 		return self.__str__()
 
 class TimeTracker:
 	def __init__(self, database_path=None, project=None):
-		
-
 		# Set up directories, if they do not exist
 		if database_path:
 			self.database_path = database_path
@@ -73,21 +79,34 @@ class TimeTracker:
 		con.commit()
 		con.close()
 
-	def start(self, taskname=None):
+	def _get_active_tasks_by_name(self, taskname=None, everything=False):
 		con = sqlite3.connect(self.database_path)
-		if taskname:
-			result = con.execute('select rowid, * from tasks where project=? ' \
-								'and name=? and active=?', 
-								(self.project_id, taskname, True,))
+		if not everything:
+			if taskname:
+				result = con.execute('select rowid, * from tasks where project=? ' \
+									'and name=? and active=?', 
+									(self.project_id, taskname, True,))
+			else:
+				result = con.execute('select rowid, * from tasks where project=? ' \
+									'and name is null and active=?', 
+									(self.project_id, True,))
 		else:
-			result = con.execute('select rowid, * from tasks where project=? ' \
-								'and name is null and active=?', 
-								(self.project_id, True,))
+			result = con.execute('select rowid, * from tasks where project=? '\
+									'and active=?',
+									(self.project_id, True,))
+
 
 		results = list()
 		for row in result:
-			t = Task(row[1], row[2], row[3], row[4], row[5], row[6])
+			t = Task(row[0], row[1], row[2], row[3], row[4], row[5], row[6])
 			results.append(t)
+
+		con.close()
+
+		return results
+
+	def start(self, taskname=None):
+		results = self._get_active_tasks_by_name(taskname)
 
 		if len(results) > 0:
 			# For right now, lets just tell the user that they can't do this.
@@ -96,6 +115,7 @@ class TimeTracker:
 					'you should complete them before starting another.' 
 					% len(results))
 		else:
+			con = sqlite3.connect(self.database_path)
 			con.execute('insert into tasks ' \
 						'(project, name, start, active, synced) ' \
 						'values(?,?,?,?,?)', (
@@ -109,16 +129,42 @@ class TimeTracker:
 			con.close()
 
 	def stop(self, taskname=None):
-		if self.lastaction and self.lastaction['action'] == 'start':
-			self.lastaction = dict(action='stop', 
-									timestamp=datetime.datetime.now().isoformat(),
-									taskname=taskname)
+		results = self._get_active_tasks_by_name(taskname)
 
-			self.action_count += 1
-			self.actions[self.action_count] = self.lastaction
-			self._save_config()
+		if len(results) > 0:
+			con = sqlite3.connect(self.database_path)
+			for task in results:
+				task.stop = datetime.datetime.now()
+				task.active = False
+				con.execute('update tasks set stop=?, active=? where rowid=?', 
+							(task.stop, task.active, task.rowid,))
+
+				et = task.stop - task.start
+				print("%s completed. Elapsed Time: %s" % (task.name, et))
+			con.commit()
+			con.close()
 		else:
-			print('It seems as though you weren\'t working on anything.')
+			print('There does not appear to be any open tasks with that name.')
+
+	def list(self, taskname=None):
+		if not taskname:
+			#We should take this to mean ALL tasks
+			results = self._get_active_tasks_by_name(everything=True)
+		else:
+			results = self._get_active_tasks_by_name(taskname)
+
+		if len(results) > 0:
+			print('Open Tasks:')
+			print('===========')
+			runtime = datetime.datetime.now()
+			for task in results: 
+				et = runtime - task.start
+				print("[%s] started on %s at %s (Elapsed time: %s)" % (
+						task.name, 
+						task.start.strftime('%Y-%m-%d'), 
+						task.start.strftime('%H:%M:%S'), 
+						et))
+
 
 if __name__ == '__main__':
 	args = parser.parse_args()
@@ -127,3 +173,7 @@ if __name__ == '__main__':
 
 	if args.action == 'start':
 		tt.start(args.taskname)
+	if args.action == 'stop':
+		tt.stop(args.taskname)
+	if args.action == 'list':
+		tt.list(args.taskname)
