@@ -2,72 +2,94 @@ import argparse
 import json
 import os
 import datetime
+import sqlite3
 
 
 parser = argparse.ArgumentParser(description='Keep track of tasks and time.')
-parser.add_argument('action', help="start or stop tracking")
+parser.add_argument('action', help='Start/stop tracking, sync database to server.')
 parser.add_argument('taskname', nargs='?')
 
-parser.add_argument('--config', 
-					help="Specify a path for config file, otherwise uses current working directory.")
+parser.add_argument('--database', 
+					help='Specify a path for the database.')
 
+parser.add_argument('--project',
+					help='Specify a projectname to work on.'\
+					'If not set, defaults to current directory.')
+
+class Task:
+	def __init__(self, projectid, taskname, start, stop, active, synced):
+		self.projectid = projectid
+		self.taskname = taskname
+		self.start = start
+		self.stop = stop
+		self.active = active
+		self.synced = synced
+
+	def __str__(self):
+		return "%s active: %s" % (self.taskname, self.active)
+
+	def __repr__(self):
+		return self.__str__()
 
 class TimeTracker:
-	def __init__(self, tt_file_path=None):
-		self.path = os.getcwd()
+	def __init__(self, database_path=None, project=None):
+		
 
-		if tt_file_path:
-			print(tt_file_path)
-			self.tt_file_path = tt_file_path
-			if os.path.exists(self.tt_file_path):
-				self._load_config()
-			else:
-				self._load_defaults()
-		if not tt_file_path:
-			self.tt_file_path = os.path.join(self.path, '.tt')
-			if os.path.exists(self.tt_file_path):
-				self._load_config()
-			else:
-				self._load_defaults()
+		# Set up directories, if they do not exist
+		if database_path:
+			self.database_path = database_path
+			if not os.path.exists(os.path.dirname(self.database_path)):
+				os.makedirs(os.path.dirname(self.database_path))
+		if not database_path:
+			self.database_path = os.path.join(
+				os.path.expanduser('~'), '.config', 'TimeTracker', 'tt.db')
+			if not os.path.exists(os.path.dirname(self.database_path)):
+				os.makedirs(os.path.dirname(self.database_path))
 
-	def _load_defaults(self):
-		self.projectname = os.path.basename(self.path)
-		self.actions = dict()
-		self.lastaction = None
-		self._save_config()
+		# Create projects and tasks tables if they do not exist
+		if project:
+			self.projectname = project
+		else:
+			self.projectname = os.path.basename(os.getcwd())
 
-	def _load_config(self):
-		with open(self.tt_file_path, 'r') as tt_file:
-			tt_json = json.load(tt_file)
-			self.projectname = tt_json['projectname']
-			self.actions = tt_json['actions']
-			self.action_count = len(self.actions)
-			if self.action_count > 0:
-				self.lastaction = self.actions[str(self.action_count)]
-			else:
-				self.lastaction = None
+		con = sqlite3.connect(self.database_path)
+		con.execute('create table if not exists ' \
+					'projects(name text, created datetime)')
+		con.execute('create table if not exists ' \
+					'tasks(project integer, name text, start datetime, ' \
+							'stop datetime, active boolean, synced boolean)')
+		result = con.execute('select rowid, * from projects where name=?', (self.projectname,))
+		row = result.fetchone()
+		if row:
+			self.project_id = row[0]
+		else:
+			result = con.execute('insert into projects values(?,?)', (self.projectname, datetime.datetime.now(),))
+			result = con.execute('select rowid, * from projects where name=?', (self.projectname,))
+			row = result.fetchone()
+			self.project_id = row[0]
 
-	def _save_config(self):
-		tt_obj = dict()
-		tt_obj['projectname'] = self.projectname
-		tt_obj['actions'] = self.actions
-		tt_obj['lastaction'] = self.lastaction
-
-		with open(self.tt_file_path, 'w') as tt_file:
-			json.dump(tt_obj, tt_file, indent=4)
+		con.commit()
+		con.close()
 
 	def start(self, taskname=None):
-		if self.lastaction:
-			if self.lastaction['action'] == 'start' and taskname == self.lastaction['taskname']:
-				print('Perhaps you should finished what you started, or assign a taskname.')
-			else:
-				self.lastaction = dict(action='start',
-										timestamp=datetime.datetime.now().isoformat(),
-										taskname=taskname)
+		con = sqlite3.connect(self.database_path)
+		if taskname:
+			result = con.execute('select rowid, * from tasks where project=? and name=? and active=?', (self.project_id, taskname, True,))
+		else:
+			result = con.execute('select rowid, * from tasks where project=? and name is null and active=?', (self.project_id, True,))
+		#See if they exist already, but for now lets just put them in.
+		results = list()
+		for row in result:
+			t = Task(row[1], row[2], row[3], row[4], row[5], row[6])
+			results.append(t)
 
-				self.action_count += 1
-				self.actions[self.action_count] = self.lastaction
-				self._save_config()
+		if len(results) > 0:
+			print('There are %i active tasks with the same name, you should complete them before starting another.' % len(results))
+		else:
+			con.execute('insert into tasks(project, name, start, active, synced) values(?,?,?,?,?)', (
+				self.project_id, taskname, datetime.datetime.now(), True, False))
+			con.commit()
+			con.close()
 
 	def stop(self, taskname=None):
 		if self.lastaction and self.lastaction['action'] == 'start':
@@ -83,9 +105,8 @@ class TimeTracker:
 
 if __name__ == '__main__':
 	args = parser.parse_args()
-	tt = TimeTracker(args.config)
-	
+
+	tt = TimeTracker(args.database, args.project)
+
 	if args.action == 'start':
 		tt.start(args.taskname)
-	if args.action == 'stop':
-		tt.stop(args.taskname)
