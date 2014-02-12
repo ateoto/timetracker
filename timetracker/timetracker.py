@@ -59,7 +59,7 @@ class TimeTracker:
     def __init__(self, database_path=None, project=None):
         # Set up directories, if they do not exist
         if database_path:
-            self.database_path = database_path
+            self.database_path = os.path.abspath(database_path)
             if not os.path.exists(os.path.dirname(self.database_path)):
                 os.makedirs(os.path.dirname(self.database_path))
         if not database_path:
