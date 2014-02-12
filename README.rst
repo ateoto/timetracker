@@ -6,15 +6,11 @@ TimeTracker (tt) is a python task management tool. Developed primarily out of my
 Installation
 ============
 
-Currently, you need to clone the repository, and symlink it to your apps folder.
+Use pip to install TimeTracker into your virtualenv.
 
 .. code-block:: bash
 
-	$ git clone https://github.com/Ateoto/tt.git
-	$ sudo ln -s tt/tt.py /usr/bin/tt
-
-
-This is obviously not ideal, and I will work on that.
+	$ pip install -e https://github.com/Ateoto/tt.git
 
 Usage
 =====
