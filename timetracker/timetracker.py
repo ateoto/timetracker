@@ -144,6 +144,7 @@ class TimeTracker:
                         False,
                         False))
 
+            print('Started %s' % (taskname))
             con.commit()
             con.close()
 
