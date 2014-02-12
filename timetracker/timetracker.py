@@ -192,9 +192,13 @@ class TimeTracker:
 
     def status(self):
         results = self._get_active_tasks()
+        results = results + self._get_paused_tasks()
 
         if len(results) > 0:
             for task in results:
-                print('%s Elapsed Time: %s' % (task.name, task._pretty_elapsed_time()))
+                if not task.paused:
+                    print('%s (%s)' % (task.name, task._pretty_elapsed_time()))
+                else:
+                    print('%s (%s) [Paused]' % (task.name, task._pretty_elapsed_time()))
         else:
             print('There are no active tasks.')

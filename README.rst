@@ -35,12 +35,19 @@ You can also see a list of active tasks.
 
 .. code-block:: bash
 
-	$ tt list
-	Open Tasks:
-	===========
-	[None] (Elapsed time: 1 hours, 23 minutes)
-	[Working on list command.] (Elapsed time: 36 minutes)
-	[Pretty Elapsed Time.] (Elapsed time: 24 minutes)
+	$ tt status
+	New task (0 minutes)
+	Old task (2 minutes) [Paused]
+
+
+There is a special case for pausing tasks, it flags the task in the database and the program will ask if you'd like to continue it after you stop your current task. TimeTracker will prompt you to pause active tasks if you try to start a new task with another task open. You can also manually pause a task.
+
+.. code-block:: bash
+
+	$ tt status
+	Current task (10 minutes)
+	$ tt pause "Current task"
+	Paused Current task
 
 There is a lot more to come.
 
