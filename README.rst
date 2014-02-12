@@ -10,7 +10,7 @@ Use pip to install TimeTracker into your virtualenv.
 
 .. code-block:: bash
 
-	$ pip install -e https://github.com/Ateoto/tt.git
+	$ pip install -e https://github.com/Ateoto/timetracker.git
 
 Usage
 =====
