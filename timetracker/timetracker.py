@@ -5,7 +5,7 @@ import datetime
 import sqlite3
 
 class Task:
-    def __init__(self, rowid, projectid, name, start, stop, active, synced):
+    def __init__(self, rowid, projectid, name, start, stop, active, synced, paused):
         self.rowid = rowid
         self.projectid = projectid
         self.name = name
@@ -19,6 +19,7 @@ class Task:
             self.stop = None
         self.active = active
         self.synced = synced
+        self.paused = paused
 
     def _pretty_elapsed_time(self):
         if not self.stop:
@@ -46,7 +47,7 @@ class Task:
             if count2 != 0:
                 pretty = "%s, %i %s" % (pretty, count2, name2)     
                 
-        return pretty 
+        return pretty
 
     def __str__(self):
         return "[%s] Elapsed Time: %s" % (self.name, self._pretty_elapsed_time())
@@ -78,7 +79,7 @@ class TimeTracker:
                     'projects(name text, created datetime)')
         con.execute('create table if not exists ' \
                     'tasks(project integer, name text, start datetime, ' \
-                            'stop datetime, active boolean, synced boolean)')
+                            'stop datetime, active boolean, synced boolean, paused boolean)')
         result = con.execute('select rowid, * from projects where name=?', (self.projectname,))
         row = result.fetchone()
         if row:
@@ -94,26 +95,26 @@ class TimeTracker:
         con.commit()
         con.close()
 
-    def _get_active_tasks_by_name(self, taskname=None, everything=False):
+    def _get_active_tasks(self):
         con = sqlite3.connect(self.database_path)
-        if not everything:
-            if taskname:
-                result = con.execute('select rowid, * from tasks where project=? ' \
-                                    'and name=? and active=?', 
-                                    (self.project_id, taskname, True,))
-            else:
-                result = con.execute('select rowid, * from tasks where project=? ' \
-                                    'and name is null and active=?', 
-                                    (self.project_id, True,))
-        else:
-            result = con.execute('select rowid, * from tasks where project=? '\
-                                    'and active=?',
-                                    (self.project_id, True,))
-
+        result = con.execute('select rowid, * from tasks where active=?', (True,))
 
         results = list()
         for row in result:
-            t = Task(row[0], row[1], row[2], row[3], row[4], row[5], row[6])
+            t = Task(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
+            results.append(t)
+
+        con.close()
+
+        return results
+
+    def _get_paused_tasks(self):
+        con = sqlite3.connect(self.database_path)
+        result = con.execute('select rowid, * from tasks where paused=?', (True,))
+
+        results = list()
+        for row in result:
+            t = Task(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
             results.append(t)
 
         con.close()
@@ -121,54 +122,77 @@ class TimeTracker:
         return results
 
     def start(self, taskname=None):
-        results = self._get_active_tasks_by_name(taskname)
+        results = self._get_active_tasks()
 
         if len(results) > 0:
-            # For right now, lets just tell the user that they can't do this.
-            # In the future, lets make this more interactive.
-            print('There are %i active tasks with the same name, ' \
-                    'you should complete them before starting another.' 
-                    % len(results))
+            response = input('Do you want to pause %s? [Y/n]:' % (results[0].name))
+            if response.lower() is not 'n':
+                self.pause(results[0].name)
+                self.start(taskname)
         else:
+            if not taskname:
+                taskname = 'Working on %s' % (self.projectname)
             con = sqlite3.connect(self.database_path)
             con.execute('insert into tasks ' \
-                        '(project, name, start, active, synced) ' \
-                        'values(?,?,?,?,?)', (
+                        '(project, name, start, active, synced, paused) ' \
+                        'values(?,?,?,?,?,?)', (
                         self.project_id, 
                         taskname, 
                         datetime.datetime.now(),
                         True,
+                        False,
                         False))
 
             con.commit()
             con.close()
 
-    def stop(self, taskname=None):
-        results = self._get_active_tasks_by_name(taskname)
+    def pause(self):
+        con = sqlite3.connect(self.database_path)
+        
+        results = con.execute('select rowid, name from tasks where active=?', (True,))
+        for task in results:
+            rowid = task[0]
+            con.execute('update tasks set stop=?, active=?, paused=? where rowid=?',
+                        (datetime.datetime.now(), False, True, rowid,))
+            print('Paused %s' % (task[1]))
+        con.commit()
+        con.close()
 
-        if len(results) > 0:
+
+    def stop(self):
+        active_results = self._get_active_tasks()
+        paused_results = self._get_paused_tasks()
+
+        con = sqlite3.connect(self.database_path)
+        if len(active_results) > 0:
             con = sqlite3.connect(self.database_path)
-            for task in results:
+            for task in active_results:
                 task.stop = datetime.datetime.now()
                 task.active = False
                 con.execute('update tasks set stop=?, active=? where rowid=?', 
                             (task.stop, task.active, task.rowid,))
 
-                print("%s completed. Elapsed Time: %s" % (task.name, task._pretty_elapsed_time()))
-            con.commit()
-            con.close()
-        else:
-            print('There does not appear to be any open tasks with that name.')
+                print("%s completed in %s" % (task.name, task._pretty_elapsed_time()))
 
-    def list(self, taskname=None):
-        if not taskname:
-            #We should take this to mean ALL tasks
-            results = self._get_active_tasks_by_name(everything=True)
-        else:
-            results = self._get_active_tasks_by_name(taskname)
+        con.commit()
+
+        if len(paused_results) > 0:
+            for task in paused_results:
+                response = input("Would you like to resume %s? [Y/n]:" % (task.name))
+                if response.lower() is not 'n':
+                    self.start(task.name)
+                else: 
+                    con.execute('update tasks set paused=? where rowid=?',
+                                (False, task.rowid,))
+        con.commit()
+        con.close()
+
+        if len(active_results) == 0 and len(paused_results) == 0:
+            print('There aren\'t any active or paused tasks.')
+
+    def status(self):
+        results = self._get_active_tasks()
 
         if len(results) > 0:
-            print('Open Tasks:')
-            print('===========')
             for task in results:
-                print(task)
+                print('%s Elapsed Time: %s' % (task.name, task._pretty_elapsed_time()))
