@@ -1,6 +1,6 @@
 import argparse
 
-from .tt import TimeTracker
+from .timetracker import TimeTracker
 
 def process_commands():
     parser = argparse.ArgumentParser(description='Keep track of tasks and time.')
