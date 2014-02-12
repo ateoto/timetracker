@@ -125,10 +125,11 @@ class TimeTracker:
         results = self._get_active_tasks()
 
         if len(results) > 0:
-            response = input('Do you want to pause %s? [Y/n]:' % (results[0].name))
-            if response.lower() is not 'n':
-                self.pause(results[0].name)
-                self.start(taskname)
+            for task in results:
+                response = input('Do you want to pause %s? [Y/n]:' % (task.name))
+                if response.lower() != 'n':
+                    self.pause()
+                    self.start(taskname)
         else:
             if not taskname:
                 taskname = 'Working on %s' % (self.projectname)
@@ -147,17 +148,15 @@ class TimeTracker:
             con.close()
 
     def pause(self):
+        results = self._get_active_tasks()
+
         con = sqlite3.connect(self.database_path)
-        
-        results = con.execute('select rowid, name from tasks where active=?', (True,))
         for task in results:
-            rowid = task[0]
             con.execute('update tasks set stop=?, active=?, paused=? where rowid=?',
-                        (datetime.datetime.now(), False, True, rowid,))
-            print('Paused %s' % (task[1]))
+                        (datetime.datetime.now(), False, True, task.rowid,))
+            print('Paused %s' % (task.name))
         con.commit()
         con.close()
-
 
     def stop(self):
         active_results = self._get_active_tasks()
@@ -179,11 +178,11 @@ class TimeTracker:
         if len(paused_results) > 0:
             for task in paused_results:
                 response = input("Would you like to resume %s? [Y/n]:" % (task.name))
-                if response.lower() is not 'n':
+                if response.lower() != 'n':
                     self.start(task.name)
-                else: 
-                    con.execute('update tasks set paused=? where rowid=?',
-                                (False, task.rowid,))
+                
+                con.execute('update tasks set paused=? where rowid=?',
+                            (False, task.rowid,))
         con.commit()
         con.close()
 
@@ -196,3 +195,5 @@ class TimeTracker:
         if len(results) > 0:
             for task in results:
                 print('%s Elapsed Time: %s' % (task.name, task._pretty_elapsed_time()))
+        else:
+            print('There are no active tasks.')
