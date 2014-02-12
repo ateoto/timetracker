@@ -1,21 +1,8 @@
 #!/usr/bin/env python
 
-import argparse
 import os
 import datetime
 import sqlite3
-
-
-parser = argparse.ArgumentParser(description='Keep track of tasks and time.')
-parser.add_argument('action', help='Start/stop tracking, sync database to server.')
-parser.add_argument('taskname', nargs='?')
-
-parser.add_argument('--database', 
-                    help='Specify a path for the database.')
-
-parser.add_argument('--project',
-                    help='Specify a projectname to work on.'\
-                    'If not set, defaults to current directory.')
 
 class Task:
     def __init__(self, rowid, projectid, name, start, stop, active, synced):
@@ -185,15 +172,3 @@ class TimeTracker:
             print('===========')
             for task in results:
                 print(task)
-
-if __name__ == '__main__':
-    args = parser.parse_args()
-
-    tt = TimeTracker(args.database, args.project)
-
-    if args.action == 'start':
-        tt.start(args.taskname)
-    if args.action == 'stop':
-        tt.stop(args.taskname)
-    if args.action == 'list':
-        tt.list(args.taskname)
