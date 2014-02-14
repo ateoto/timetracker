@@ -146,7 +146,7 @@ class TimeTracker:
         return results
 
     def _sync(self, task_rowid):
-        print(task_rowid)
+        pass
 
     def start(self, taskname=None, sync=False):
         results = self._get_active_tasks()
