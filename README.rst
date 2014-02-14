@@ -51,6 +51,17 @@ There is a special case for pausing tasks, it flags the task in the database and
 
 There is a lot more to come.
 
+Tests
+=====
+
+This is still a work in progress, but it is a top priority for me.
+
+.. code-block:: bash
+	$ git clone https://github.com/Ateoto/timetracker.git
+	$ cd timetracker
+	$ python -m unittest discover
+
+
 Features
 ========
 
