@@ -57,6 +57,7 @@ Tests
 This is still a work in progress, but it is a top priority for me.
 
 .. code-block:: bash
+
 	$ git clone https://github.com/Ateoto/timetracker.git
 	$ cd timetracker
 	$ python -m unittest discover
