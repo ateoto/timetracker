@@ -57,6 +57,18 @@ class Task:
 
 class TimeTracker:
     def __init__(self, database_path=None, project=None):
+
+        try:
+            self.allow_sync = bool(int(os.getenv('TT_ALLOW_SYNC', default=False)))
+        except ValueError:
+            print('WARNING:')
+            print('Please set TT_ALLOW_SYNC to 1 to allow syncing, or 0 to disallow syncing with the server.')
+            print('Syncing has been disabled for this run.')
+            self.allow_sync = False
+            
+        self.server = os.getenv('TT_SERVER_ADDRESS')
+        self.api_token = os.getenv('TT_ACCESS_TOKEN')
+
         # Set up directories, if they do not exist
         if database_path:
             self.database_path = os.path.abspath(database_path)

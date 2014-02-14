@@ -10,6 +10,9 @@ def process_commands():
     parser.add_argument('--database', 
                         help='Specify a path for the database.')
 
+    parser.add_argument('--no-sync',
+                        help='TimeTracker will not attempt to sync with the server. To avoid adding this everytime, you can set the environment variable TT_ALLOW_SYNC to 0')
+
     parser.add_argument('--project',
                         help='Specify a projectname to work on.'\
                         'If not set, defaults to name of current directory.')
