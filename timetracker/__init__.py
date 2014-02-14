@@ -25,10 +25,12 @@ def process_commands():
     tt = TimeTracker(args.database, args.project)
 
     if args.action == 'start':
-        tt.start(taskname=args.taskname, sync=args.sync)
+        tt.start(taskname=args.taskname)
     if args.action == 'stop':
         tt.stop(args.sync)
     if args.action == 'pause':
         tt.pause(args.sync)
     if args.action == 'status':
         tt.status()
+
+    tt.close(sync=args.sync)

@@ -141,7 +141,7 @@ class TimeTracker:
     def _sync(self, task_rowid):
         pass
 
-    def start(self, taskname=None, sync=False):
+    def start(self, taskname=None):
         results = self._get_active_tasks()
 
         if len(results) > 0:
@@ -156,22 +156,19 @@ class TimeTracker:
         else:
             if not taskname:
                 taskname = 'Working on %s' % (self.projectname)
-            cursor = self.con.execute('insert into tasks ' \
-                        '(project, name, start, active, synced, paused) ' \
-                        'values(?,?,?,?,?,?)', (
-                        self.project_id, 
-                        taskname, 
-                        datetime.datetime.now(),
-                        True,
-                        False,
-                        False))
-
-            print('Started %s' % (taskname))
+            self.con.execute('insert into tasks ' \
+                '(project, name, start, active, synced, paused) ' \
+                'values(?,?,?,?,?,?)', (
+                self.project_id, 
+                taskname, 
+                datetime.datetime.now(),
+                True,
+                False,
+                False))
 
             self.con.commit()
 
-            if self.allow_sync or sync:
-                self._sync(cursor.lastrowid)
+            print('Started %s' % (taskname))
 
 
     def pause(self, sync=False):
@@ -223,3 +220,7 @@ class TimeTracker:
                     print('%s (%s) [Paused]' % (task.name, task._pretty_elapsed_time()))
         else:
             print('There are no active tasks.')
+
+    def close(self, sync=False):
+        #This is where we would sync everything before we close
+        self.con.close()
