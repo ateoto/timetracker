@@ -71,9 +71,12 @@ class TimeTracker:
 
         # Set up directories, if they do not exist
         if database_path:
-            self.database_path = os.path.abspath(database_path)
-            if not os.path.exists(os.path.dirname(self.database_path)):
-                os.makedirs(os.path.dirname(self.database_path))
+            if database_path == ':memory:':
+                self.database_path = database_path
+            else:
+                self.database_path = os.path.abspath(database_path)
+                if not os.path.exists(os.path.dirname(self.database_path)):
+                    os.makedirs(os.path.dirname(self.database_path))
         if not database_path:
             self.database_path = os.path.join(
                 os.path.expanduser('~'), '.config', 'TimeTracker', 'tt.db')
@@ -86,62 +89,52 @@ class TimeTracker:
         else:
             self.projectname = os.path.basename(os.getcwd())
 
-        con = sqlite3.connect(self.database_path)
-        con.execute('create table if not exists ' \
+        self.con = sqlite3.connect(self.database_path)
+        self.con.execute('create table if not exists ' \
                     'projects(name text, created datetime)')
-        con.execute('create table if not exists ' \
+        self.con.execute('create table if not exists ' \
                     'tasks(project integer, name text, start datetime, ' \
                             'stop datetime, active boolean, synced boolean, paused boolean)')
-        result = con.execute('select rowid, * from projects where name=?', (self.projectname,))
+        result = self.con.execute('select rowid, * from projects where name=?', (self.projectname,))
         row = result.fetchone()
         if row:
             self.project_id = row[0]
         else:
-            result = con.execute('insert into projects values(?,?)', 
+            result = self.con.execute('insert into projects values(?,?)', 
                 (self.projectname, datetime.datetime.now(),))
-            result = con.execute('select rowid, * from projects where name=?', 
+            result = self.con.execute('select rowid, * from projects where name=?', 
                 (self.projectname,))
             row = result.fetchone()
             self.project_id = row[0]
 
-        con.commit()
-        con.close()
+        self.con.commit()
 
     def _get_tasks_by_taskname(self, taskname):
-        con = sqlite3.connect(self.database_path)
-        result = con.execute('select rowid, * from tasks where name=?', (taskname,))
+        result = self.con.execute('select rowid, * from tasks where name=?', (taskname,))
         results = list()
         for row in result:
             t = Task(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
             results.append(t)
-
-        con.close()
 
         return results
 
     def _get_active_tasks(self):
-        con = sqlite3.connect(self.database_path)
-        result = con.execute('select rowid, * from tasks where active=?', (True,))
+        result = self.con.execute('select rowid, * from tasks where active=?', (True,))
 
         results = list()
         for row in result:
             t = Task(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
             results.append(t)
-
-        con.close()
 
         return results
 
     def _get_paused_tasks(self):
-        con = sqlite3.connect(self.database_path)
-        result = con.execute('select rowid, * from tasks where paused=?', (True,))
+        result = self.con.execute('select rowid, * from tasks where paused=?', (True,))
 
         results = list()
         for row in result:
             t = Task(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
             results.append(t)
-
-        con.close()
 
         return results
 
@@ -163,8 +156,7 @@ class TimeTracker:
         else:
             if not taskname:
                 taskname = 'Working on %s' % (self.projectname)
-            con = sqlite3.connect(self.database_path)
-            cursor = con.execute('insert into tasks ' \
+            cursor = self.con.execute('insert into tasks ' \
                         '(project, name, start, active, synced, paused) ' \
                         'values(?,?,?,?,?,?)', (
                         self.project_id, 
@@ -176,8 +168,7 @@ class TimeTracker:
 
             print('Started %s' % (taskname))
 
-            con.commit()
-            con.close()
+            self.con.commit()
 
             if self.allow_sync or sync:
                 self._sync(cursor.lastrowid)
@@ -186,30 +177,26 @@ class TimeTracker:
     def pause(self, sync=False):
         results = self._get_active_tasks()
 
-        con = sqlite3.connect(self.database_path)
         for task in results:
-            con.execute('update tasks set stop=?, active=?, paused=? where rowid=?',
+            self.con.execute('update tasks set stop=?, active=?, paused=? where rowid=?',
                         (datetime.datetime.now(), False, True, task.rowid,))
             print('Paused %s' % (task.name))
-        con.commit()
-        con.close()
+        self.con.commit()
 
     def stop(self, sync=False):
         active_results = self._get_active_tasks()
         paused_results = self._get_paused_tasks()
 
-        con = sqlite3.connect(self.database_path)
         if len(active_results) > 0:
-            con = sqlite3.connect(self.database_path)
             for task in active_results:
                 task.stop = datetime.datetime.now()
                 task.active = False
-                con.execute('update tasks set stop=?, active=? where rowid=?', 
+                self.con.execute('update tasks set stop=?, active=? where rowid=?', 
                             (task.stop, task.active, task.rowid,))
 
                 print("%s completed in %s" % (task.name, task._pretty_elapsed_time()))
 
-        con.commit()
+            self.con.commit()
 
         if len(paused_results) > 0:
             for task in paused_results:
@@ -217,10 +204,9 @@ class TimeTracker:
                 if response.lower() != 'n':
                     self.start(task.name)
                 
-                con.execute('update tasks set paused=? where rowid=?',
+                self.con.execute('update tasks set paused=? where rowid=?',
                             (False, task.rowid,))
-        con.commit()
-        con.close()
+            self.con.commit()
 
         if len(active_results) == 0 and len(paused_results) == 0:
             print('There aren\'t any active or paused tasks.')
