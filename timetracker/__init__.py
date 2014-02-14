@@ -10,8 +10,11 @@ def process_commands():
     parser.add_argument('--database', 
                         help='Specify a path for the database.')
 
-    parser.add_argument('--no-sync',
-                        help='TimeTracker will not attempt to sync with the server. To avoid adding this everytime, you can set the environment variable TT_ALLOW_SYNC to 0')
+    parser.add_argument('--sync',
+                        help='TimeTracker will attempt to sync with the server. ' \
+                        'To avoid adding this everytime, you can set the environment '\
+                        'variable TT_ALLOW_SYNC to 1',
+                        action='store_true')
 
     parser.add_argument('--project',
                         help='Specify a projectname to work on.'\
@@ -22,10 +25,10 @@ def process_commands():
     tt = TimeTracker(args.database, args.project)
 
     if args.action == 'start':
-        tt.start(args.taskname)
+        tt.start(taskname=args.taskname, sync=args.sync)
     if args.action == 'stop':
-        tt.stop()
+        tt.stop(args.sync)
     if args.action == 'pause':
-        tt.pause()
+        tt.pause(args.sync)
     if args.action == 'status':
         tt.status()

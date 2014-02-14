@@ -107,6 +107,18 @@ class TimeTracker:
         con.commit()
         con.close()
 
+    def _get_tasks_by_taskname(self, taskname):
+        con = sqlite3.connect(self.database_path)
+        result = con.execute('select rowid, * from tasks where name=?', (taskname,))
+        results = list()
+        for row in result:
+            t = Task(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7])
+            results.append(t)
+
+        con.close()
+
+        return results
+
     def _get_active_tasks(self):
         con = sqlite3.connect(self.database_path)
         result = con.execute('select rowid, * from tasks where active=?', (True,))
@@ -133,20 +145,26 @@ class TimeTracker:
 
         return results
 
-    def start(self, taskname=None):
+    def _sync(self, task_rowid):
+        print(task_rowid)
+
+    def start(self, taskname=None, sync=False):
         results = self._get_active_tasks()
 
         if len(results) > 0:
-            for task in results:
-                response = input('Do you want to pause %s? [Y/n]:' % (task.name))
-                if response.lower() != 'n':
-                    self.pause()
-                    self.start(taskname)
+            if taskname in [task.name for task in results]:
+                print('You are already working on that task.')
+            else:
+                for task in results:
+                    response = input('Do you want to pause %s? [Y/n]:' % (task.name))
+                    if response.lower() != 'n':
+                        self.pause()
+                        self.start(taskname)
         else:
             if not taskname:
                 taskname = 'Working on %s' % (self.projectname)
             con = sqlite3.connect(self.database_path)
-            con.execute('insert into tasks ' \
+            cursor = con.execute('insert into tasks ' \
                         '(project, name, start, active, synced, paused) ' \
                         'values(?,?,?,?,?,?)', (
                         self.project_id, 
@@ -157,10 +175,15 @@ class TimeTracker:
                         False))
 
             print('Started %s' % (taskname))
+
             con.commit()
             con.close()
 
-    def pause(self):
+            if self.allow_sync or sync:
+                self._sync(cursor.lastrowid)
+
+
+    def pause(self, sync=False):
         results = self._get_active_tasks()
 
         con = sqlite3.connect(self.database_path)
@@ -171,7 +194,7 @@ class TimeTracker:
         con.commit()
         con.close()
 
-    def stop(self):
+    def stop(self, sync=False):
         active_results = self._get_active_tasks()
         paused_results = self._get_paused_tasks()
 
