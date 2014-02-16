@@ -5,27 +5,21 @@ import datetime
 import sqlite3
 
 class Task:
-    def __init__(self, rowid, projectid, name, start, stop, active, synced, paused):
+    def __init__(self, rowid=None, projectid=None, name=None, starttime=None, stoptime=None, active=True, synced=False, paused=False):
         self.rowid = rowid
         self.projectid = projectid
         self.name = name
-        if start:
-            self.start = datetime.datetime.strptime(start, '%Y-%m-%d %H:%M:%S.%f')
-        else:
-            self.start = None
-        if stop:
-            self.stop = datetime.datetime.strptime(stop, '%Y-%m-%d %H:%M:%S.%f')
-        else:
-            self.stop = None
+        self.starttime = starttime
+        self.stoptime = stoptime
         self.active = active
         self.synced = synced
         self.paused = paused
 
     def _pretty_elapsed_time(self):
-        if not self.stop:
-            et = datetime.datetime.now() - self.start
+        if not self.stoptime:
+            et = datetime.datetime.now() - self.starttime
         else:
-            et = self.stop - self.start
+            et = self.stoptime - self.starttime
 
         # Pretty Elapsed time: adapted from django.utils.timesince
         chunks = (
@@ -49,6 +43,46 @@ class Task:
                 
         return pretty
 
+
+    def start(self, connection):
+        cursor = connection.execute('insert into tasks values(?,?,?,?,?,?,?)',
+                            self._tuple_values())
+        connection.commit()
+        self.rowid = cursor.lastrowid
+
+        return self.rowid is not None
+
+    def toggle_pause(self, connection):
+        self.stoptime = datetime.datetime.now()
+        self.active = False
+        self.paused = not self.paused
+
+        connection.execute('update tasks set stoptime=?, active=?, paused=? where rowid=?',
+                            (self.stoptime, self.active, self.paused, self.rowid))
+
+        connection.commit()
+
+
+    def stop(self, connection):
+        self.stoptime = datetime.datetime.now()
+        self.active = False
+        self.paused = False
+
+        connection.execute('update tasks set stoptime=?, active=?, paused=? where rowid=?',
+                            (self.stoptime, self.active, self.paused, self.rowid))
+
+        connection.commit()
+
+    def _tuple_values(self):
+        return (self.projectid, 
+                self.name, 
+                self.starttime, 
+                self.stoptime, 
+                self.active, 
+                self.synced, 
+                self.paused)
+
+
     def __str__(self):
         return "[%s] Elapsed Time: %s" % (self.name, self._pretty_elapsed_time())
 
@@ -68,6 +102,24 @@ class TimeTracker:
             
         self.server = os.getenv('TT_SERVER_ADDRESS')
         self.api_token = os.getenv('TT_ACCESS_TOKEN')
+        
+
+        if project:
+            # Command Line varianble takes precendence.
+            self.projectname = project
+        else:
+            # Check the TT env variables
+            tt_project = os.getenv('TT_PROJECT')
+            if tt_project:
+                self.projectname = tt_project
+            else:
+                # Are we in a virtual env?
+                virtual_env = os.getenv('VIRTUAL_ENV')
+                if virtual_env:
+                    self.projectname = os.path.basename(os.path.basename(virtual_env))
+                else:
+                    # Just use the current working directory.
+                    self.projectname = os.path.basename(os.getcwd())
 
         # Set up directories, if they do not exist
         if database_path:
@@ -83,18 +135,15 @@ class TimeTracker:
             if not os.path.exists(os.path.dirname(self.database_path)):
                 os.makedirs(os.path.dirname(self.database_path))
 
-        # Create projects and tasks tables if they do not exist
-        if project:
-            self.projectname = project
-        else:
-            self.projectname = os.path.basename(os.getcwd())
 
-        self.con = sqlite3.connect(self.database_path)
+        self.con = sqlite3.connect(self.database_path, detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
         self.con.execute('create table if not exists ' \
                     'projects(name text, created datetime)')
+        
         self.con.execute('create table if not exists ' \
-                    'tasks(project integer, name text, start datetime, ' \
-                            'stop datetime, active boolean, synced boolean, paused boolean)')
+                    'tasks(project integer, name text, starttime timestamp, ' \
+                            'stoptime timestamp, active boolean, synced boolean, paused boolean)')
+
         result = self.con.execute('select rowid, * from projects where name=?', (self.projectname,))
         row = result.fetchone()
         if row:
@@ -102,10 +151,7 @@ class TimeTracker:
         else:
             result = self.con.execute('insert into projects values(?,?)', 
                 (self.projectname, datetime.datetime.now(),))
-            result = self.con.execute('select rowid, * from projects where name=?', 
-                (self.projectname,))
-            row = result.fetchone()
-            self.project_id = row[0]
+            self.project_id = result.lastrowid
 
         self.con.commit()
 
@@ -119,7 +165,7 @@ class TimeTracker:
         return results
 
     def _get_active_tasks(self):
-        result = self.con.execute('select rowid, * from tasks where active=?', (True,))
+        result = self.con.execute('select rowid, project, name, starttime as "starttime [timestamp]", stoptime as "stoptime [timestamp]", active, synced, paused from tasks where active=?', (True,))
 
         results = list()
         for row in result:
@@ -129,7 +175,7 @@ class TimeTracker:
         return results
 
     def _get_paused_tasks(self):
-        result = self.con.execute('select rowid, * from tasks where paused=?', (True,))
+        result = self.con.execute('select rowid, project, name, starttime as "starttime [timestamp]", stoptime as "stoptime [timestamp]", active, synced, paused from tasks where paused=?', (True,))
 
         results = list()
         for row in result:
@@ -151,59 +197,50 @@ class TimeTracker:
                 for task in results:
                     response = input('Do you want to pause %s? [Y/n]:' % (task.name))
                     if response.lower() != 'n':
-                        self.pause()
+                        self.toggle_pause()
                         self.start(taskname)
         else:
             if not taskname:
                 taskname = 'Working on %s' % (self.projectname)
-            self.con.execute('insert into tasks ' \
-                '(project, name, start, active, synced, paused) ' \
-                'values(?,?,?,?,?,?)', (
-                self.project_id, 
-                taskname, 
-                datetime.datetime.now(),
-                True,
-                False,
-                False))
 
-            self.con.commit()
-
-            print('Started %s' % (taskname))
+            task = Task(projectid=self.project_id,
+                        name=taskname,
+                        starttime=datetime.datetime.now(),
+                        active=True,
+                        synced=False,
+                        paused=False)
+            if task.start(self.con):
+                print('Started %s' % (taskname))
 
 
     def pause(self, sync=False):
         results = self._get_active_tasks()
 
         for task in results:
-            self.con.execute('update tasks set stop=?, active=?, paused=? where rowid=?',
-                        (datetime.datetime.now(), False, True, task.rowid,))
+            task.toggle_pause(self.con)
             print('Paused %s' % (task.name))
-        self.con.commit()
 
     def stop(self, sync=False):
         active_results = self._get_active_tasks()
-        paused_results = self._get_paused_tasks()
 
         if len(active_results) > 0:
             for task in active_results:
-                task.stop = datetime.datetime.now()
-                task.active = False
-                self.con.execute('update tasks set stop=?, active=? where rowid=?', 
-                            (task.stop, task.active, task.rowid,))
+                task.stop(self.con)
 
                 print("%s completed in %s" % (task.name, task._pretty_elapsed_time()))
 
-            self.con.commit()
-
-        if len(paused_results) > 0:
+            paused_results = self._get_paused_tasks()
             for task in paused_results:
                 response = input("Would you like to resume %s? [Y/n]:" % (task.name))
                 if response.lower() != 'n':
-                    self.start(task.name)
-                
-                self.con.execute('update tasks set paused=? where rowid=?',
-                            (False, task.rowid,))
-            self.con.commit()
+                    task.start(self.con)
+                    
+                task.toggle_pause(self.con)
+        else:
+            # There are no active results, so we should stop paused tasks.
+            paused_results = self._get_paused_tasks()
+            for task in paused_results:
+                task.stop(self.con)
 
         if len(active_results) == 0 and len(paused_results) == 0:
             print('There aren\'t any active or paused tasks.')
@@ -214,10 +251,12 @@ class TimeTracker:
 
         if len(results) > 0:
             for task in results:
-                if not task.paused:
-                    print('%s (%s)' % (task.name, task._pretty_elapsed_time()))
+                if task.paused:
+                    paused = ' [Paused]'
                 else:
-                    print('%s (%s) [Paused]' % (task.name, task._pretty_elapsed_time()))
+                    paused = ''
+                
+                print('%s (%s)%s' % (task.name, task._pretty_elapsed_time(), paused))
         else:
             print('There are no active tasks.')
 

@@ -8,7 +8,8 @@ def process_commands():
     parser.add_argument('taskname', nargs='?', help='Define a taskname to keep track of')
 
     parser.add_argument('--database', 
-                        help='Specify a path for the database.')
+                        help='Specify a path for the database. You can also ' \
+                        'set the environment variable TT_DATABASE_PATH')
 
     parser.add_argument('--sync',
                         help='TimeTracker will attempt to sync with the server. ' \
@@ -17,12 +18,13 @@ def process_commands():
                         action='store_true')
 
     parser.add_argument('--project',
-                        help='Specify a projectname to work on.'\
-                        'If not set, defaults to name of current directory.')
+                        help='Specify a projectname to work on. To avoid ' \
+                        'setting this everytime, you can set the environment ' \
+                        'variable TT_PROJECT. Works well with virtualenv!')
 
     args = parser.parse_args()
 
-    tt = TimeTracker(args.database, args.project)
+    tt = TimeTracker(database_path=args.database, project=args.project)
 
     if args.action == 'start':
         tt.start(taskname=args.taskname)
